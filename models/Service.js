@@ -13,8 +13,16 @@ const serviceSchema = new mongoose.Schema({
   },
   bookedSlot: {
     day: String,
+    date: String,
     time: String,
-  }
+  },
+  statusHistory: [
+    {
+      status: String,
+      changedAt: { type: Date, default: Date.now },
+    },
+  ],
+
 }, { timestamps: true });
 
 export default mongoose.model("Service", serviceSchema);
