@@ -14,8 +14,9 @@ const userSchema = new mongoose.Schema({
   },
   restrictedUntil: { type: Date },
   exposureDegree: { type: Number, default: 0 },
-
-
+  address: { type: String },
+  phoneNumber: { type: String },
+  companyName: { type: String },
 }, { timestamps: true });
 
 userSchema.pre("save", async function (next) {

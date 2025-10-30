@@ -7,13 +7,28 @@ const router = express.Router();
 
 router.get("/my-bookings", protect, requireRole(["customer", "admin"]), async (req, res) => {
   const bookings = await Booking.find({ customer: req.user._id })
-    .populate("service provider", "title name email")
-    .sort({ updatedAt: -1 });
+    .populate("service", "title description")
+    .populate("provider", "name email companyName")
+    .sort({ updatedAt: -1 })
+    .lean();
   res.json(bookings);
 });
 
 router.get("/my-services", protect, requireRole(["provider", "admin"]), async (req, res) => {
-  const mine = await Service.find({ provider: req.user._id }).sort({ updatedAt: -1 });
+  const mine = await Service.find({ provider: req.user._id })
+    .sort({ updatedAt: -1 })
+    .lean();try {
+    const bookings = await Booking.find({ provider: req.user._id })
+      .populate("customer", "name email phoneNumber address") // ✅ contact info
+      .populate("service", "title description")
+      .sort({ updatedAt: -1 })
+      .lean();
+
+    res.json(bookings);
+  } catch (err) {
+    console.error("Error fetching provider bookings:", err);
+    res.status(500).json({ message: "Failed to fetch provider bookings" });
+  }
   res.json(mine);
 });
 

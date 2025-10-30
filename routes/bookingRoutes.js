@@ -7,11 +7,14 @@ const router = express.Router();
 router.get("/provider", protect, requireRole(["provider", "admin"]), async (req, res) => {
   try {
     const bookings = await Booking.find({ provider: req.user._id })
-      .populate("customer", "name email")
+      .populate("customer", "name email phoneNumber address") // ✅ contact info
       .populate("service", "title description")
-      .sort({ updatedAt: -1 });
+      .sort({ updatedAt: -1 })
+      .lean();
+
     res.json(bookings);
   } catch (err) {
+    console.error("Error fetching provider bookings:", err);
     res.status(500).json({ message: "Failed to fetch provider bookings" });
   }
 });

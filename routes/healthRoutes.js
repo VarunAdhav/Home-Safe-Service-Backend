@@ -24,55 +24,67 @@ router.post("/report", protect, async (req, res) => {
 
     user.healthStatus = "positive";
     user.restrictedUntil = restrictedUntil;
-    user.exposureDegree = 0; // directly positive
+    user.exposureDegree = 0; // direct case
     await user.save();
 
     // 2️⃣ Find all bookings where this user was a customer in the last 10 days
     const recentBookings = await Booking.find({
       customer: user._id,
-      status: "completed",
+      status: { $in: ["completed", "in_progress", "booked"] },
       updatedAt: { $gte: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000) },
     });
 
-    // Providers who interacted with this user → first-degree exposure
     const exposedProviderIds = [...new Set(recentBookings.map(b => b.provider.toString()))];
 
     for (const providerId of exposedProviderIds) {
       const provider = await User.findById(providerId);
       if (!provider) continue;
 
-      provider.healthStatus = "exposed";
-      provider.exposureDegree = 1; // first degree
-      const providerRestrictedUntil = new Date();
-      providerRestrictedUntil.setDate(providerRestrictedUntil.getDate() + 10);
-      provider.restrictedUntil = providerRestrictedUntil;
-      await provider.save();
+      // Only update if provider isn't already positive
+      if (provider.healthStatus !== "positive") {
+        provider.healthStatus = "exposed";
+        provider.exposureDegree = 1; // first-degree exposure
+        const providerRestrictedUntil = new Date();
+        providerRestrictedUntil.setDate(providerRestrictedUntil.getDate() + 10);
+        provider.restrictedUntil = providerRestrictedUntil;
+        await provider.save();
+      }
 
       // 3️⃣ Find all customers serviced by this provider in last 2 days → second-degree exposure
       const providerBookings = await Booking.find({
         provider: providerId,
-        status: "completed",
+        status: { $in: ["completed", "in_progress", "booked"] },
         updatedAt: { $gte: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) },
       });
 
       const exposedCustomerIds = [
         ...new Set(providerBookings.map(b => b.customer.toString())),
-      ].filter(cid => cid !== user._id.toString()); // skip original patient
+      ].filter(cid => cid !== user._id.toString());
 
       for (const customerId of exposedCustomerIds) {
         const customer = await User.findById(customerId);
         if (!customer) continue;
 
-        customer.healthStatus = "exposed";
-        customer.exposureDegree = 2; // indirect exposure
-        const customerRestrictedUntil = new Date();
-        customerRestrictedUntil.setDate(customerRestrictedUntil.getDate() + 2);
-        customer.restrictedUntil = customerRestrictedUntil;
-        await customer.save();
+        // Only mark as exposed if not already positive
+        if (customer.healthStatus !== "positive") {
+          customer.healthStatus = "exposed";
+          customer.exposureDegree = 2; // indirect exposure
+          const customerRestrictedUntil = new Date();
+          customerRestrictedUntil.setDate(customerRestrictedUntil.getDate() + 2);
+          customer.restrictedUntil = customerRestrictedUntil;
+          await customer.save();
+        }
       }
     }
 
-    res.json({ message: "Health status updated and exposures notified." });
+    res.json({
+      message: "Health status updated and exposure chain propagated successfully.",
+      user: {
+        healthStatus: user.healthStatus,
+        restrictedUntil: user.restrictedUntil,
+        exposureDegree: user.exposureDegree,
+      },
+    });
   } catch (err) {
     console.error("Error in /api/health/report:", err);
     res.status(500).json({ message: "Server error while updating health status" });
