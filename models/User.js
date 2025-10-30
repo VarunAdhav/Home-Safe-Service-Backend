@@ -6,7 +6,16 @@ const userSchema = new mongoose.Schema({
   email: { type: String, unique: true, required: true },
   password: { type: String, required: true },
   role: { type: String, enum: ["customer", "provider", "admin"], default: "customer" },
-  consentTracing: { type: Boolean, default: false } // privacy dashboard toggle
+  consentTracing: { type: Boolean, default: false },
+  healthStatus: {
+    type: String,
+    enum: ["healthy", "positive", "exposed"],
+    default: "healthy",
+  },
+  restrictedUntil: { type: Date },
+  exposureDegree: { type: Number, default: 0 },
+
+
 }, { timestamps: true });
 
 userSchema.pre("save", async function (next) {
